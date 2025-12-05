@@ -1,0 +1,31 @@
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tidequant"
+dynamic = ["version"]
+description = "TideQuant toolkit."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aiohttp>=3.9",
+    "aiohttp-socks>=0.8",
+    "beautifulsoup4>=4.12",
+    "numpy>=1.24",
+    "pandas>=2.1",
+    "pyarrow>=14.0",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+ml = [
+    "torch>=2.0",
+]
+
+[tool.setuptools]
+packages = ["tidequant"]
+
+[tool.setuptools.dynamic]
+version = { attr = "tidequant.__version__" }
