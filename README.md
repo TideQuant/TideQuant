@@ -1,22 +1,21 @@
-# TideQuant \u6f6e\u6c50\u91cf\u5316
-\u987a\u52bf\u800c\u751f\uff0c\u9006\u52bf\u6709\u5ea6
+# TideQuant 潮汐量化
+顺势而生，逆势有度
 
-## \u5b89\u88c5
-
-\u5728\u4ed3\u5e93\u6839\u76ee\u5f55\u4e0b\u4f7f\u7528 pip\uff0c\u5373\u53ef\u5b8c\u6210\u6700\u7b80\u6d01\u7684\u5b89\u88c5\uff08Python 3.10+\uff09\uff1a
+## 安装
+在仓库根目录下使用pip, 即可完成最简洁的安装:
 
 ```bash
 pip install .
 ```
 
-\u82e5\u9700\u8981\u5305\u542b\u673a\u5668\u5b66\u4e60\u76f8\u5173\u4f9d\u8d56\uff08\u5982 PyTorch\uff09\uff0c\u8bf7\u4f7f\u7528 extra \u5b89\u88c5\uff1a
+若需要包含机器学习相关依赖, 请使用extra安装:
 
 ```bash
 pip install ".[ml]"
 ```
 
-\u5f00\u53d1/\u8c03\u8bd5\u65f6\u53ef\u4ee5\u9009\u62e9\u53ef\u7f16\u8f91\u5b89\u88c5\uff1a
+若需要包含深度学习相关依赖, 请使用extra安装:
 
 ```bash
-pip install -e ".[ml]"
+pip install ".[dl]"
 ```

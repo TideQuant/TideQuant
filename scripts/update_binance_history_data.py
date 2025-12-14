@@ -1,5 +1,5 @@
 """
-Script for downloading Binance historical data to local storage.
+从Binance下载历史数据
 """
 
 import argparse
