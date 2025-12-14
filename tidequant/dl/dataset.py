@@ -65,8 +65,8 @@ class HDF5CSDataset(Dataset):
         ]
         x: np.ndarray = np.stack(x_list, axis=0)
 
-        date_idx: int = time_idx // len(self.h5_db.seconds)
-        second_idx: int = time_idx % len(self.h5_db.seconds)
+        date_idx: int = idx // len(self.y.second)
+        second_idx: int = idx % len(self.y.second)
         y: np.ndarray = self.y.data[date_idx, second_idx]
         return {
             "x": x,
