@@ -2,9 +2,9 @@
 从Binance下载历史数据
 """
 
-import argparse
 import asyncio
 import io
+import jsonargparse
 import os
 import time
 import zipfile
@@ -216,7 +216,7 @@ class BinanceHistoryDataDL:
         return df.set_index("id")
 
 
-async def main(args: argparse.Namespace) -> None:
+async def main(args: jsonargparse.Namespace) -> None:
     assert os.path.exists(args.save_folder), f"No exist {args.save_folder}"
     os.makedirs(os.path.join(args.save_folder, "trade"), exist_ok=True)
     os.makedirs(os.path.join(args.save_folder, "orderbook"), exist_ok=True)
@@ -285,12 +285,12 @@ async def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = jsonargparse.ArgumentParser()
     parser.add_argument("--save_folder", type=str, required=True)
     parser.add_argument("--start_dt", type=str, default="2020-01-01")
     # parser.add_argument("--end_dt", type=str, default=None)
     parser.add_argument("--proxy_url", type=str, default="socks5://localhost:11889")
-    args: argparse.Namespace = parser.parse_args()
+    args: jsonargparse.Namespace = parser.parse_args()
 
     attempt: int = 0
     while True:

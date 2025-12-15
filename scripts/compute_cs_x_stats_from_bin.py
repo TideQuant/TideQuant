@@ -3,7 +3,7 @@
 基于bin截面数据库计算因子统计指标
 """
 
-import argparse
+import jsonargparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Dict, List
 
@@ -90,7 +90,7 @@ def build_norm_stats_db(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = jsonargparse.ArgumentParser()
     parser.add_argument("--from_folder", type=str, required=True)
     parser.add_argument("--to_file", type=str, required=True)
     parser.add_argument("--x_fields_file", type=str, default=None)
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     parser.add_argument("--end_dt", type=str, default=None)
     parser.add_argument("--end_second", type=int, default=None)
     parser.add_argument("--n_worker", type=int, default=128)
-    args = parser.parse_args()
+    args: jsonargparse.Namespace = parser.parse_args()
 
     build_norm_stats_db(
         from_folder=args.from_folder,

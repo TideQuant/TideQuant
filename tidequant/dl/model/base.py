@@ -1,10 +1,10 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Dict, TYPE_CHECKING
+from typing import Dict, List, TYPE_CHECKING
 
 import numpy as np
-import onnx
 import torch
+import torch.onnx as onnx
 from torch import nn
 from torch.utils.data import Dataset
 
@@ -72,7 +72,7 @@ class CSModel(Model):
     """
     横截面模型基类
 
-    默认dataset中包含y:
+    默认dataset中包含x_fields, y_fields和y:
     - y为(n_date, n_second, n_ticker, n_field)的xr.DataArray
 
     推荐在__init__函数只传入python的基本类型
@@ -81,15 +81,17 @@ class CSModel(Model):
 
     def __init__(
         self,
-        dim: int,
-        output_dim: int = 1,
+        x_fields: List[str],
+        y_fields: List[str],
         seq_len: int = 1,
         use_mix_loss: bool = False,
     ) -> None:
         super().__init__()
         
-        self.dim: int = dim
-        self.output_dim: int = output_dim
+        self.x_fields: List[str] = x_fields
+        self.y_fields: List[str] = y_fields
+        self.dim: int = len(x_fields)
+        self.output_dim: int = len(y_fields)
         self.seq_len: int = seq_len
         self.use_mix_loss: bool = use_mix_loss
 
@@ -137,7 +139,9 @@ class CSModel(Model):
         只关注第一个标签的ic
         """
         y: np.ndarray = dataset.y[..., 0].data
-        y_pred: np.ndarray = engine.whole_output["y_pred"].numpy()[..., 0]
+        y_pred: np.ndarray = engine.whole_output[
+            "y_pred"
+        ].numpy()[..., 0].reshape(y.shape)
         return {
             "ic": ic(y, y_pred, axis=-1),
             "rank_ic": ic(y, y_pred, axis=-1, rank=True),
@@ -205,7 +209,7 @@ class CSModel(Model):
             input_names=["x"],
             output_names=["y_pred"],
             dynamic_axes={
-                "x": {0: "batch", 2: "n_ticker"},
-                "y_pred": {0: "batch", 1: "n_ticker"},
+                "x": {1: "ticker"},
+                "y_pred": {1: "ticker"},
             },
         )

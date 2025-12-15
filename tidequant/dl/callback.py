@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 from abc import ABC
@@ -46,12 +47,6 @@ class Callback(ABC):
         pass
     
     def on_val_end(self, engine: AccelerateEngine) -> None:
-        pass
-
-    def on_test_start(self, engine: AccelerateEngine) -> None:
-        pass
-    
-    def on_test_end(self, engine: AccelerateEngine) -> None:
         pass
 
 
@@ -108,14 +103,17 @@ class EarlyStopSaver(Callback):
             self.best_metric = engine.metric.get(self.metric_name, None)
 
             engine.logger.info(
-                f"epoch {engine.epoch} step {engine.step} new best model"
+                f"epoch {engine.current_epoch} "
+                f"step {engine.current_step} new best model"
             )
 
             # 保存最优模型
             if engine.accelerator.is_main_process:
                 torch.save(
                     engine.get_model().state_dict(),
-                    os.path.join(engine.folder, f"model_{engine.step}.pth"),
+                    os.path.join(
+                        engine.folder, f"model_{engine.current_step}.pth"
+                    ),
                 )
         else:
             # 触发早停逻辑
@@ -184,7 +182,9 @@ class WarmUpSchedule(Callback):
         self.warmup_ratio: float = warmup_ratio
 
     def on_train_start(self, engine: AccelerateEngine) -> None:
-        total_step: int = len(engine.train_dataloader) * engine.params["epoch"]
+        total_step: int = math.ceil(
+            len(engine.train_dataloader) / engine.params["n_grad_acc_step"]
+        ) * engine.params["epoch"]
         engine.scheduler = get_linear_schedule_with_warmup(
             engine.optimizer,
             num_warmup_steps=int(total_step * self.warmup_ratio),

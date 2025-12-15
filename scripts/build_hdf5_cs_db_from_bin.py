@@ -1,9 +1,9 @@
 ﻿# coding: utf-8
 """
-基于已有bin截面数据库生成分日HDF5数据库
+基于bin截面数据库生成分日HDF5数据库
 """
 
-import argparse
+import jsonargparse
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import List
@@ -77,12 +77,12 @@ def build_hdf5_db(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = jsonargparse.ArgumentParser()
     parser.add_argument("--from_folder", type=str, required=True)
     parser.add_argument("--to_folder", type=str, required=True)
     parser.add_argument("--x_fields_file", type=str, required=True)
     parser.add_argument("--n_worker", type=int, default=32)
-    args = parser.parse_args()
+    args: jsonargparse.Namespace = parser.parse_args()
 
     build_hdf5_db(
         from_folder=args.from_folder,
