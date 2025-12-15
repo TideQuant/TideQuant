@@ -1,6 +1,6 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Dict, TYPE_CHECKING
 
 import numpy as np
 import onnx
@@ -55,12 +55,17 @@ class Model(nn.Module, Callback, ABC):
         """
         pass
 
-    @abstractmethod
-    def export(self, engine: AccelerateEngine) -> None:
+    def export_jit(self, engine: AccelerateEngine) -> None:
+        """
+        导出为JIT模型并保存
+        """
+        raise NotImplementedError
+
+    def export_onnx(self, engine: AccelerateEngine) -> None:
         """
         导出为ONNX模型并保存
         """
-        pass
+        raise NotImplementedError
 
 
 class CSModel(Model):
@@ -69,6 +74,9 @@ class CSModel(Model):
 
     默认dataset中包含y:
     - y为(n_date, n_second, n_ticker, n_field)的xr.DataArray
+
+    推荐在__init__函数只传入python的基本类型
+    因为他们会在script脚本中使用jsonargparse自动添加
     """
 
     def __init__(
@@ -132,7 +140,7 @@ class CSModel(Model):
         y_pred: np.ndarray = engine.whole_output["y_pred"].numpy()[..., 0]
         return {
             "ic": ic(y, y_pred, axis=-1),
-            "rank_ic": rank_ic(y, y_pred, axis=-1, rank=True),
+            "rank_ic": ic(y, y_pred, axis=-1, rank=True),
         }
 
     def save_test_y(self, engine: AccelerateEngine) -> None:
@@ -146,7 +154,29 @@ class CSModel(Model):
             engine.whole_output["y_pred"].numpy()[..., 0].reshape(y.shape),
         )
 
-    def export(self, engine: AccelerateEngine) -> None:
+    def export_jit(self, engine: AccelerateEngine) -> None:
+        """
+        导出为JIT模型并保存
+        """
+        class _ExportWrap(nn.Module):
+            """
+            输入(b, seq_len, n_ticker, n_field)的x
+            
+            输出(b, n_ticker)的y_pred
+            """
+
+            def __init__(self, model: "CSModel") -> None:
+                super().__init__()
+                self.model = model
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                out: Dict[str, torch.Tensor] = self.model({"x": x})
+                return out["y_pred"][:, :, 0]
+
+        scripted = torch.jit.script(_ExportWrap(self.eval()))
+        scripted.save(os.path.join(engine.folder, "model_jit.pt"))
+
+    def export_onnx(self, engine: AccelerateEngine) -> None:
         """
         导出为股票维度可动态变化的ONNX模型并保存
 
@@ -179,25 +209,3 @@ class CSModel(Model):
                 "y_pred": {0: "batch", 1: "n_ticker"},
             },
         )
-
-    def export_jit(self, engine: AccelerateEngine) -> None:
-        """
-        导出为JIT模型并保存
-        """
-        class _ExportWrap(nn.Module):
-            """
-            输入(b, seq_len, n_ticker, n_field)的x
-            
-            输出(b, n_ticker)的y_pred
-            """
-
-            def __init__(self, model: "CSModel") -> None:
-                super().__init__()
-                self.model = model
-
-            def forward(self, x: torch.Tensor) -> torch.Tensor:
-                out: Dict[str, torch.Tensor] = self.model({"x": x})
-                return out["y_pred"][:, :, 0]
-
-        scripted = torch.jit.script(_ExportWrap(self.eval()))
-        scripted.save(os.path.join(engine.folder, "model_jit.pt"))
