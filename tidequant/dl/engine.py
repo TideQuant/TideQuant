@@ -63,8 +63,8 @@ class AccelerateEngine(Engine):
         "lr": 0.001,
         "weight_decay": 0.0,
 
-        "batch_size": 128,
-        "n_worker": 4,
+        "batch_size": 16,
+        "n_worker": 0,
         "pin_memory": False,
         "prefetch_factor": 1,
         "persistent_workers": True,
@@ -73,7 +73,7 @@ class AccelerateEngine(Engine):
         "n_grad_acc_step": 1,
         "clip_norm": 5.0,
     
-        "n_val_per_epoch": 1,
+        "n_val_per_epoch": 2,
     }
 
     def __init__(

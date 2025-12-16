@@ -71,6 +71,20 @@ def load_to_device(
             data[k] = data[k].to(device, non_blocking=True)
 
 
+def get_oldest_ckpt(folder: str) -> str:
+    """
+    从一个文件夹下面获取最老的checkpoint路径
+
+    文件夹下的checkpoint需按照f"model{step}.pth"格式
+
+    常用于推断模型训练的最优epoch
+    """
+
+    ckpts: List[str] = os.listdir(folder)
+    ckpts = [ckpt for ckpt in ckpts if ckpt[: 6] == "model_"]
+    return min(ckpts, key=lambda s: int(s.split('_')[1].split('.')[0]))
+
+
 def get_newest_ckpt(folder: str) -> str:
     """
     从一个文件夹下面获取最新的checkpoint路径

@@ -142,9 +142,13 @@ class CSModel(Model):
         y_pred: np.ndarray = engine.whole_output[
             "y_pred"
         ].numpy()[..., 0].reshape(y.shape)
+        
+        _ic: float = ic(y, y_pred, axis=-1)
+        _rank_ic: float = ic(y, y_pred, axis=-1, rank=True)
         return {
-            "ic": ic(y, y_pred, axis=-1),
-            "rank_ic": ic(y, y_pred, axis=-1, rank=True),
+            "ic": _ic,
+            "rank_ic": _rank_ic,
+            "avg_ic": (_ic + _rank_ic) / 2.0,
         }
 
     def save_test_y(self, engine: AccelerateEngine) -> None:
