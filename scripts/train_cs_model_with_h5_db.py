@@ -7,10 +7,11 @@
 """
 
 import inspect
+import json
 import jsonargparse
 import os
 import sys
-from jsonargparse.util import import_object
+from jsonargparse._util import import_object
 from typing import Any, Dict, List, Type
 
 import numpy as np
@@ -21,8 +22,7 @@ from tidequant.dl import (
     EarlyStopSaver,
     HDF5CSDataset,
     WarmUpSchedule,
-    get_newest_ckpt,
-    get_oldest_ckpt,
+    get_ckpt,
 )
 from tidequant.dl.model import CSModel
 from tidequant.utils import validate_float_to_int
@@ -44,9 +44,11 @@ def get_args() -> jsonargparse.Namespace:
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--test_ckpt", type=str, default=None)
     parser.add_argument(
-        "--task", nargs='+', default=["export_jit", "export_onnx"]
+        "--task",
+        nargs='+',
+        default=["save_test_y", "export_jit", "export_onnx"],
     )
-    
+
     # 配置AccelerateEngine
     parser.add_class_arguments(
         AccelerateEngine,
@@ -73,7 +75,9 @@ def get_args() -> jsonargparse.Namespace:
     parser.add_argument("--test_start_dt", type=str, default="2024-11-01")
     parser.add_argument("--test_end_dt", type=str, default="2024-12-31")
     parser.add_argument(
-        "--second_slice", type=lambda s: eval(s), default=slice(None)
+        "--second_slice",
+        type=lambda s: s if isinstance(s, slice) else eval(s),
+        default=slice(None),
     )
     parser.add_argument("--seq_len", type=int, default=1)
 
@@ -91,7 +95,7 @@ def run_once(args: jsonargparse.Namespace) -> None:
     """
     执行一次训练
     """
-    
+
     # 初始化引擎
     callbacks: List[Callback] = [EarlyStopSaver(
         metric_name=args.metric_name,
@@ -106,6 +110,17 @@ def run_once(args: jsonargparse.Namespace) -> None:
         create_folder=args.train,
         callbacks=callbacks,
         params=args.engine.params,
+    )
+
+    # 保存参数
+    json.dump(
+        vars(args),
+        open(os.path.join(
+            args.engine.folder, "args.json"
+        ), "w", encoding="utf-8"),
+        ensure_ascii=False,
+        indent=2,
+        default=str,
     )
 
     # 加载数据集
@@ -172,6 +187,8 @@ def run_once(args: jsonargparse.Namespace) -> None:
     for task in args.task:
         engine.run(task)
 
+    engine.close()
+
 
 if __name__ == "__main__":
     args: jsonargparse.Namespace = get_args()
@@ -182,11 +199,11 @@ if __name__ == "__main__":
         args.train_end_dt = args.val_end_dt
         args.metric_name = None
 
-        oldest_ckpt: str = get_oldest_ckpt(args.engine.folder)
-        oldest_step: int = int(oldest_ckpt.split('_')[1].split('.')[0])
-        newest_ckpt: str = get_newest_ckpt(args.engine.folder)
-        newest_step: int = int(newest_ckpt.split('_')[1].split('.')[0])
-        args.max_n_val = validate_float_to_int(newest_step / oldest_step)     
+        min_ckpt: str = get_ckpt(args.engine.folder, "min")
+        min_step: int = int(min_ckpt.split('_')[1].split('.')[0])
+        max_ckpt: str = get_ckpt(args.engine.folder, "max")
+        max_step: int = int(max_ckpt.split('_')[1].split('.')[0])
+        args.max_n_val = validate_float_to_int(max_step / min_ckpt)   
 
         for seed in args.train_all_seed:
             args.engine.folder = os.path.join(

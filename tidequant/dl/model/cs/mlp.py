@@ -35,13 +35,22 @@ class Preprocessor(nn.Module):
     
         if "winsor_min_max" in return_list:
             self.register_buffer(
-                "x_min", torch.tensor(stats.loc[x_fields]["x_1"].values)
+                "x_min",
+                torch.tensor(
+                    stats.loc[x_fields]["x_1"].values, dtype=torch.float32
+                )
             )
             self.register_buffer(
-                "x_median", torch.tensor(stats.loc[x_fields]["x_50"].values)
+                "x_median",
+                torch.tensor(
+                    stats.loc[x_fields]["x_50"].values, dtype=torch.float32
+                )
             )
             self.register_buffer(
-                "x_max", torch.tensor(stats.loc[x_fields]["x_99"].values)
+                "x_max",
+                torch.tensor(
+                    stats.loc[x_fields]["x_99"].values, dtype=torch.float32
+                )
             )
 
         # TODO: 之后的预处理方法增加的维数可能不同

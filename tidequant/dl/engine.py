@@ -19,7 +19,7 @@ from tqdm.auto import tqdm
 
 from .callback import Callback
 from .model.base import Model
-from .utils import collate_fn, get_newest_ckpt
+from .utils import collate_fn, get_ckpt
 from ..engine.base import Engine
 from ..utils.helper import DummyClass
 from ..utils.io import get_logger, reset_logger
@@ -168,7 +168,7 @@ class AccelerateEngine(Engine):
         self.accelerator.wait_for_everyone()
 
         if ckpt is None:
-            ckpt = get_newest_ckpt(self.folder)
+            ckpt = get_ckpt(self.folder, "max")
 
         state = torch.load(os.path.join(
             self.folder, ckpt
@@ -274,7 +274,9 @@ class AccelerateEngine(Engine):
                     # 正向
                     self.data = data
                     self.output = self.model(data)
-                    loss: Dict[str, torch.Tensor] = self.model.loss_func(self)
+                    loss: Dict[str, torch.Tensor] = (
+                        self.get_model().loss_func(self)
+                    )
                     train_loss_agg.update(loss)
 
                     self.accelerator.backward(loss["loss"])
@@ -304,7 +306,7 @@ class AccelerateEngine(Engine):
                             self.whole_output, val_loss_agg = self.predict(
                                 self.val_dataloader, compute_loss=True
                             )
-                            self.metric = self.model.metric_func(
+                            self.metric = self.get_model().metric_func(
                                 self, self.val_dataset
                             )
 
@@ -373,7 +375,7 @@ class AccelerateEngine(Engine):
         self.whole_output, _ = self.predict(
             self.test_dataloader, compute_loss=False
         )
-        self.metric: Dict[str, float] = self.model.metric_func(
+        self.metric: Dict[str, float] = self.get_model().metric_func(
             self, self.test_dataset
         )
         self.logger.info(f"test metric: {self.metric}")
@@ -405,7 +407,7 @@ class AccelerateEngine(Engine):
                 self.output = self.model(data)
 
                 if compute_loss:
-                    loss_agg.update(self.model.loss_func(self))
+                    loss_agg.update(self.get_model().loss_func(self))
 
                 idx_list.append(data["idx"].reshape(-1))
                 output_list.append(self.output)
@@ -438,7 +440,7 @@ class AccelerateEngine(Engine):
         """
         执行模型自定义任务的接口
         """
-        getattr(self.model, task)(self, )
+        getattr(self.get_model(), task)(self, )
 
     def close(self, ) -> None:
         """

@@ -1,3 +1,9 @@
+"""
+模型基类
+"""
+
+from __future__ import annotations
+
 import os
 from abc import ABC, abstractmethod
 from typing import Dict, List, TYPE_CHECKING
@@ -5,6 +11,7 @@ from typing import Dict, List, TYPE_CHECKING
 import numpy as np
 import torch
 import torch.onnx as onnx
+import xarray as xr
 from torch import nn
 from torch.utils.data import Dataset
 
@@ -155,11 +162,15 @@ class CSModel(Model):
         """
         保存y和y_pred到本地
         """
-        y: np.ndarray = engine.test_dataset.y.data[..., 0]
-        np.save(os.path.join(engine.folder, "y.npy"), y)
-        np.save(
-            os.path.join(engine.folder, "y_pred.npy"),
+        y = engine.test_dataset.y.isel(field=0)
+        y_pred = xr.DataArray(
             engine.whole_output["y_pred"].numpy()[..., 0].reshape(y.shape),
+            coords=y.coords,
+            dims=y.dims,
+            name="y_pred",
+        )
+        xr.Dataset({"y": y, "y_pred": y_pred}).to_netcdf(
+            os.path.join(engine.folder, "y.nc")
         )
 
     def export_jit(self, engine: AccelerateEngine) -> None:
