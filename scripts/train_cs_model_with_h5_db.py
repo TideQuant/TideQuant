@@ -8,6 +8,7 @@
 
 import inspect
 import jsonargparse
+import os
 import sys
 from jsonargparse.util import import_object
 from typing import Any, Dict, List, Type
@@ -17,13 +18,13 @@ import numpy as np
 from tidequant.dl import (
     AccelerateEngine,
     Callback,
-    CSModel,
     EarlyStopSaver,
     HDF5CSDataset,
     WarmUpSchedule,
     get_newest_ckpt,
     get_oldest_ckpt,
 )
+from tidequant.dl.model import CSModel
 from tidequant.utils import validate_float_to_int
 
 
@@ -36,10 +37,15 @@ def get_args() -> jsonargparse.Namespace:
     
     # 配置运行参数
     parser.add_argument("--train", action="store_true")
-    parser.add_argument("--train_all_data", action="store_true")
+    parser.add_argument("--train_all", action="store_true")
+    parser.add_argument(
+        "--train_all_seed", nargs='+', default=[42, ]
+    )
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--test_ckpt", type=str, default=None)
-    parser.add_argument("--task", nargs='+')
+    parser.add_argument(
+        "--task", nargs='+', default=["export_jit", "export_onnx"]
+    )
     
     # 配置AccelerateEngine
     parser.add_class_arguments(
@@ -58,7 +64,7 @@ def get_args() -> jsonargparse.Namespace:
     # 配置Dataset
     parser.add_argument("--bin_folder", type=str, required=True)
     parser.add_argument("--h5_folder", type=str, required=True)
-    parser.add_argument("--y_fields", nargs='+')
+    parser.add_argument("--y_fields", nargs='+', required=True)
     # 这里默认是Bar1m的配置
     parser.add_argument("--train_start_dt", type=str, default="2020-01-01")
     parser.add_argument("--train_end_dt", type=str, default="2024-10-31")
@@ -66,7 +72,9 @@ def get_args() -> jsonargparse.Namespace:
     parser.add_argument("--val_end_dt", type=str, default="2024-12-31")
     parser.add_argument("--test_start_dt", type=str, default="2024-11-01")
     parser.add_argument("--test_end_dt", type=str, default="2024-12-31")
-    parser.add_argument("--second_slice", type=lambda s: eval(s))
+    parser.add_argument(
+        "--second_slice", type=lambda s: eval(s), default=slice(None)
+    )
     parser.add_argument("--seq_len", type=int, default=1)
 
     # 配置模型
@@ -171,17 +179,18 @@ if __name__ == "__main__":
 
     # 使用全量数据进行训练
     if args.train_all:
-        # 文件夹名后面加_all
-        args.folder = (
-            args.folder if args.folder[-1] != '/' else args.folder[: -1]
-        ) + "_all"
         args.train_end_dt = args.val_end_dt
         args.metric_name = None
 
         oldest_ckpt: str = get_oldest_ckpt(args.engine.folder)
-        oldest_step: int = oldest_ckpt.split('_')[1].split('.')[0]
+        oldest_step: int = int(oldest_ckpt.split('_')[1].split('.')[0])
         newest_ckpt: str = get_newest_ckpt(args.engine.folder)
-        newest_step: int = newest_ckpt.split('_')[1].split('.')[0]
+        newest_step: int = int(newest_ckpt.split('_')[1].split('.')[0])
         args.max_n_val = validate_float_to_int(newest_step / oldest_step)     
 
-        run_once(args)
+        for seed in args.train_all_seed:
+            args.engine.folder = os.path.join(
+                args.engine.folder, f"train_all_sd{seed}"
+            )
+            args.engine.params.seed = seed
+            run_once(args)
