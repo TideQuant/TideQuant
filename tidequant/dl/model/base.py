@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import copy
 import os
 from abc import ABC, abstractmethod
 from typing import Dict, List, TYPE_CHECKING
@@ -192,8 +193,10 @@ class CSModel(Model):
                 out: Dict[str, torch.Tensor] = self.model({"x": x})
                 return out["y_pred"][:, :, 0]
 
-        scripted = torch.jit.script(_ExportWrap(self.eval()))
-        scripted.save(os.path.join(engine.folder, "model_jit.pt"))
+        scripted = torch.jit.script(
+            _ExportWrap(copy.deepcopy(self).cpu().eval())
+        )
+        scripted.save(os.path.join(engine.folder, "model.pt"))
 
     def export_onnx(self, engine: AccelerateEngine) -> None:
         """
@@ -216,7 +219,7 @@ class CSModel(Model):
                 return self.model({"x": x.unsqueeze(0)})["y_pred"][:, :, 0]
 
         onnx.export(
-            _ExportWrap(self.eval()),
+            _ExportWrap(copy.deepcopy(self).cpu().eval()),
             torch.randn(self.seq_len, 5736, self.dim),
             os.path.join(engine.folder, "model.onnx"),
             verbose=True,

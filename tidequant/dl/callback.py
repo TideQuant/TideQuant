@@ -125,7 +125,9 @@ class EarlyStopSaver(Callback):
         # 达到最大评估次数会停止训练
         self.current_n_val += 1
         if self.current_n_val >= self.max_n_val:
-            engine.logger.info(f"reach max_n_val {self.max_n_val}")
+            engine.logger.info(
+                f"reach max_n_val {self.max_n_val}, early return"
+            )
             engine.stop_train = True
 
 

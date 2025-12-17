@@ -2,22 +2,20 @@
 通用运算函数, 损失函数和子模块等
 """
 
-from typing import Tuple
+from typing import List, Tuple, Optional
 
 import torch
 import torch.nn.functional as F
-from torch import nn
 
 
 """
 运算函数
 """
 
-@torch.no_grad()
 def rank(
     x: torch.Tensor,
     dim: int,
-    bins: int | None = None,
+    bins: Optional[int] = None,
 ) -> torch.Tensor:
     """
     计算x在dim维度的排名并归一化到[0, 1]
@@ -32,12 +30,28 @@ def rank(
     # 计算rank
     _, order = torch.topk(x, k=x.size(dim), dim=dim, sorted=True, largest=False)
     rank: torch.Tensor = torch.empty_like(order)
-    shape: Tuple[int] = [1] * x.ndim
-    shape[dim] = -1
-    idx = torch.arange(
-        x.shape[dim], device=x.device
-    ).view(*shape).expand_as(order)
-    rank.scatter_(dim, order, idx)
+    
+    # shape: List[int] = [1] * x.ndim
+    # shape[dim] = -1
+    # idx = torch.arange(
+    #     x.shape[dim], device=x.device
+    # ).view(*shape).expand_as(order)
+    # rank.scatter_(dim, order, idx)
+
+    nd: int = x.dim()
+    d: int = dim if dim >= 0 else dim + nd
+    
+    idx: torch.Tensor = torch.arange(
+        x.size(d), device=x.device, dtype=order.dtype
+    )
+    for i in range(d):
+        idx = idx.unsqueeze(0)
+    
+    for i in range(nd - d - 1):
+        idx = idx.unsqueeze(-1)
+
+    idx = idx.expand_as(order)
+    rank.scatter_(d, order, idx)
 
     # 将rank归一化到0-1
     cnt: torch.Tensor = mask.sum(dim=dim, keepdim=True).clamp(min=1)
@@ -53,12 +67,11 @@ def rank(
     return rank.clamp_(0.0, 1.0)
 
 
-@torch.no_grad()
 def nanmedian(
     x: torch.Tensor,
     dim: int,
     keepdim: bool = False,
-) -> torch.Tensor:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     ONNX更易支持的nanmedian
     """

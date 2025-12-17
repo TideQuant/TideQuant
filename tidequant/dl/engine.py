@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import shutil
+import time
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 
@@ -104,6 +105,7 @@ class AccelerateEngine(Engine):
                 # 移除旧文件夹并创建
                 if os.path.exists(folder):
                     shutil.rmtree(folder, ignore_errors=True)
+ 
                 os.makedirs(folder)
 
             self.logger: logging.Logger = get_logger(folder)
@@ -335,7 +337,7 @@ class AccelerateEngine(Engine):
         """
         self.logger.info(
             f"epoch {self.current_epoch} step {self.current_step} "
-            f"{prefix} {value}"
+            f"{prefix} {dict(value)}"
         )
 
         for k, v in value.items():

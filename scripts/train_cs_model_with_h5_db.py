@@ -39,14 +39,15 @@ def get_args() -> jsonargparse.Namespace:
     parser.add_argument("--train", action="store_true")
     parser.add_argument("--train_all", action="store_true")
     parser.add_argument(
-        "--train_all_seed", nargs='+', default=[42, ]
+        "--train_all_seed", type=int, nargs='+', default=[42, ]
     )
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--test_ckpt", type=str, default=None)
     parser.add_argument(
         "--task",
+        type=str,
         nargs='+',
-        default=["save_test_y", "export_jit", "export_onnx"],
+        default=["save_test_y", "export_onnx", "export_jit"],
     )
 
     # 配置AccelerateEngine
@@ -66,7 +67,7 @@ def get_args() -> jsonargparse.Namespace:
     # 配置Dataset
     parser.add_argument("--bin_folder", type=str, required=True)
     parser.add_argument("--h5_folder", type=str, required=True)
-    parser.add_argument("--y_fields", nargs='+', required=True)
+    parser.add_argument("--y_fields", type=str, nargs='+', required=True)
     # 这里默认是Bar1m的配置
     parser.add_argument("--train_start_dt", type=str, default="2020-01-01")
     parser.add_argument("--train_end_dt", type=str, default="2024-10-31")
@@ -113,15 +114,16 @@ def run_once(args: jsonargparse.Namespace) -> None:
     )
 
     # 保存参数
-    json.dump(
-        vars(args),
-        open(os.path.join(
-            args.engine.folder, "args.json"
-        ), "w", encoding="utf-8"),
-        ensure_ascii=False,
-        indent=2,
-        default=str,
-    )
+    if engine.accelerator.is_main_process:
+        json.dump(
+            vars(args),
+            open(os.path.join(
+                args.engine.folder, "args.json"
+            ), "w", encoding="utf-8"),
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
 
     # 加载数据集
     dataset_kwargs: Dict[str, Any] = {
@@ -194,6 +196,8 @@ if __name__ == "__main__":
     args: jsonargparse.Namespace = get_args()
     run_once(args)
 
+    base_folder: str = args.engine.folder
+
     # 使用全量数据进行训练
     if args.train_all:
         args.train_end_dt = args.val_end_dt
@@ -203,11 +207,11 @@ if __name__ == "__main__":
         min_step: int = int(min_ckpt.split('_')[1].split('.')[0])
         max_ckpt: str = get_ckpt(args.engine.folder, "max")
         max_step: int = int(max_ckpt.split('_')[1].split('.')[0])
-        args.max_n_val = validate_float_to_int(max_step / min_ckpt)   
+        args.max_n_val = validate_float_to_int(max_step / min_step)   
 
         for seed in args.train_all_seed:
             args.engine.folder = os.path.join(
-                args.engine.folder, f"train_all_sd{seed}"
+                base_folder, f"train_all_sd{seed}"
             )
-            args.engine.params.seed = seed
+            args.engine.params["seed"] = seed
             run_once(args)
