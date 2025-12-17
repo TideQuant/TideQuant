@@ -68,18 +68,16 @@ def get_args() -> jsonargparse.Namespace:
     parser.add_argument("--bin_folder", type=str, required=True)
     parser.add_argument("--h5_folder", type=str, required=True)
     parser.add_argument("--y_fields", type=str, nargs='+', required=True)
-    # 这里默认是Bar1m的配置
+    # 这里默认是Bar1m的配置, 均为左闭右开区间[start, end)
     parser.add_argument("--train_start_dt", type=str, default="2020-01-01")
-    parser.add_argument("--train_end_dt", type=str, default="2024-10-31")
+    parser.add_argument("--train_end_dt", type=str, default="2024-11-01")
     parser.add_argument("--val_start_dt", type=str, default="2024-11-01")
-    parser.add_argument("--val_end_dt", type=str, default="2024-12-31")
+    parser.add_argument("--val_end_dt", type=str, default="2025-01-01")
     parser.add_argument("--test_start_dt", type=str, default="2024-11-01")
-    parser.add_argument("--test_end_dt", type=str, default="2024-12-31")
-    parser.add_argument(
-        "--second_slice",
-        type=lambda s: s if isinstance(s, slice) else eval(s),
-        default=slice(None),
-    )
+    parser.add_argument("--test_end_dt", type=str, default="2025-01-01")
+    parser.add_argument("--start_second", type=int, default=None)
+    parser.add_argument("--end_second", type=int, default=None)
+    parser.add_argument("--step_second", type=int, default=None)
     parser.add_argument("--seq_len", type=int, default=1)
 
     # 配置模型
@@ -138,7 +136,9 @@ def run_once(args: jsonargparse.Namespace) -> None:
                 np.datetime64(args.train_start_dt),
                 np.datetime64(args.train_end_dt)
             ),
-            second_slice=args.second_slice,
+            second_slice=slice(
+                args.start_second, args.end_second, args.step_second
+            ),
             **dataset_kwargs,
         ),
         val_dataset=HDF5CSDataset(
@@ -146,7 +146,9 @@ def run_once(args: jsonargparse.Namespace) -> None:
                 np.datetime64(args.val_start_dt),
                 np.datetime64(args.val_end_dt)
             ),
-            second_slice=args.second_slice,
+            second_slice=slice(
+                args.start_second, args.end_second, args.step_second
+            ),
             **dataset_kwargs,
         ),
         test_dataset=HDF5CSDataset(

@@ -6,6 +6,7 @@ import os
 import h5py
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
+from numpy.typing import ArrayLike
 from typing import Any, Callable, Dict, List, Literal, Tuple
 
 import numpy as np
@@ -13,6 +14,19 @@ import xarray as xr
 from tqdm import tqdm
 
 from ..utils.io import read_txt_lines
+
+
+def _convert_slice_to_xr_slice(index: ArrayLike, slc: slice) -> slice:
+    """
+    把Python左闭右开slice转成xarray可用的左闭右闭slice
+    """
+
+    if slc.stop is None:
+        return slc
+
+    pos = index.searchsorted(slc.stop, side="left") - 1
+    assert pos >= 0
+    return slice(slc.start, index[pos], slc.step)
 
 
 def slice_from_cs_da(
@@ -24,9 +38,11 @@ def slice_from_cs_da(
 ) -> xr.DataArray:
     """
     从截面数据中按日期/秒/品种/字段切片, 支持步长采样
-
-    切片均为左闭右闭区间
     """
+
+    # 转化为xarray可用的左闭右闭slice
+    date_slice = _convert_slice_to_xr_slice(data.date, date_slice)
+    second_slice = _convert_slice_to_xr_slice(data.second, second_slice)
 
     sliced_data: xr.DataArray = data.sel(
         date=slice(date_slice.start, date_slice.stop)
@@ -124,7 +140,7 @@ class BinCSDataBase:
         """
         读取bin文件并返回DataArray
 
-        日期为闭区间[start_dt, end_dt]
+        日期为[start_dt, end_dt)
         """
         start: int = 0
         if start_dt is not None:
@@ -132,7 +148,7 @@ class BinCSDataBase:
         
         end: int = len(self.dates)
         if end_dt is not None:
-            end = np.searchsorted(self.dates, end_dt, side="right")
+            end = np.searchsorted(self.dates, end_dt, side="left")
         
         data: np.ndarray = np.fromfile(
             file,

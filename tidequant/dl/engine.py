@@ -130,6 +130,7 @@ class AccelerateEngine(Engine):
         self.test_dataloader: DataLoader | None = None
 
         # 模型
+        # 未封装的模型只能用来加载参数, 其余一律使用封装过的模型
         self.unprepared_model: Model = None
         self.model = None
         self.optimizer: Optimizer = None

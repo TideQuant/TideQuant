@@ -96,6 +96,7 @@ if __name__ == "__main__":
     parser.add_argument("--x_fields_file", type=str, default=None)
     parser.add_argument("--start_dt", type=str, default=None)
     parser.add_argument("--end_dt", type=str, default=None)
+    parser.add_argument("--start_second", type=int, default=None)
     parser.add_argument("--end_second", type=int, default=None)
     parser.add_argument("--n_worker", type=int, default=64)
     args: jsonargparse.Namespace = parser.parse_args()
@@ -110,6 +111,6 @@ if __name__ == "__main__":
             None if args.start_dt is None else np.datetime64(args.start_dt),
             None if args.end_dt is None else np.datetime64(args.end_dt),
         ),
-        second_slice=slice(None, args.end_second),
+        second_slice=slice(args.start_second, args.end_second),
         n_worker=args.n_worker,
     )

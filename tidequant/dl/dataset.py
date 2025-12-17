@@ -16,8 +16,6 @@ class HDF5CSDataset(Dataset):
     基于分日h5数据库的数据集
 
     数据库格式参考data/cs_database/HDF5CSDataBase
-
-    传入的切片均为双闭区间
     """
 
     def __init__(
