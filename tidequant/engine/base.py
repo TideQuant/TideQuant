@@ -8,8 +8,6 @@ import shutil
 from abc import ABC, ABCMeta
 from typing import Any, Dict, Tuple, Type
 
-from torch._decomp.decompositions import type_casts
-
 from ..utils.io import get_logger, reset_logger
 
 

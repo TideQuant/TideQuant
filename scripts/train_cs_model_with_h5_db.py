@@ -15,6 +15,7 @@ from jsonargparse._util import import_object
 from typing import Any, Dict, List, Type
 
 import numpy as np
+from setproctitle import setproctitle
 
 from tidequant.dl import (
     AccelerateEngine,
@@ -26,6 +27,9 @@ from tidequant.dl import (
 )
 from tidequant.dl.model import CSModel
 from tidequant.utils import validate_float_to_int
+
+
+setproctitle("cross sectional model training")
 
 
 def get_args() -> jsonargparse.Namespace:

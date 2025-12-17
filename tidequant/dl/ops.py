@@ -31,6 +31,7 @@ def rank(
     _, order = torch.topk(x, k=x.size(dim), dim=dim, sorted=True, largest=False)
     rank: torch.Tensor = torch.empty_like(order)
     
+    # 注释掉的写法由于*shape导致无法通过jit编译而弃用
     # shape: List[int] = [1] * x.ndim
     # shape[dim] = -1
     # idx = torch.arange(
@@ -40,7 +41,6 @@ def rank(
 
     nd: int = x.dim()
     d: int = dim if dim >= 0 else dim + nd
-    
     idx: torch.Tensor = torch.arange(
         x.size(d), device=x.device, dtype=order.dtype
     )
