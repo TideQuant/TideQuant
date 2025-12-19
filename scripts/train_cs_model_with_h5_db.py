@@ -58,7 +58,7 @@ def get_args() -> jsonargparse.Namespace:
     parser.add_class_arguments(
         AccelerateEngine,
         "engine",
-        skip={"create_folder", "callbacks"},
+        skip={"callbacks", },
         instantiate=False,
     )
 
@@ -73,7 +73,7 @@ def get_args() -> jsonargparse.Namespace:
     parser.add_argument("--h5_folder", type=str, required=True)
     parser.add_argument("--y_fields", type=str, nargs='+', required=True)
     # 这里默认是Bar1m的配置, 均为左闭右开区间[start, end)
-    parser.add_argument("--train_start_dt", type=str, default="2020-01-01")
+    parser.add_argument("--train_start_dt", type=str, default="2020-02-01")
     parser.add_argument("--train_end_dt", type=str, default="2024-11-01")
     parser.add_argument("--val_start_dt", type=str, default="2024-11-01")
     parser.add_argument("--val_end_dt", type=str, default="2025-01-01")
@@ -110,7 +110,7 @@ def run_once(args: jsonargparse.Namespace) -> None:
 
     engine = AccelerateEngine(
         folder=args.engine.folder,
-        create_folder=args.train,
+        create_folder=args.engine.create_folder,
         callbacks=callbacks,
         params=args.engine.params,
     )
@@ -162,7 +162,7 @@ def run_once(args: jsonargparse.Namespace) -> None:
             ),
             # 测试集中的步长必须为1
             second_slice=slice(
-                args.second_slice.start, args.second_slice.stop, 1
+                args.start_second, args.end_second, 1
             ),
             **dataset_kwargs,
         ),
@@ -206,6 +206,8 @@ if __name__ == "__main__":
 
     # 使用全量数据进行训练
     if args.train_all:
+        args.train = True
+        args.engine.create_folder = True
         args.train_end_dt = args.val_end_dt
         args.metric_name = None
 

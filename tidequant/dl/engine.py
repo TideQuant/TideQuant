@@ -6,7 +6,6 @@ import logging
 import math
 import os
 import shutil
-import time
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 
@@ -139,6 +138,7 @@ class AccelerateEngine(Engine):
         self.current_epoch: int = 0
         self.current_step: int = 0
         self.stop_train: bool = False
+        self._is_prepared: bool = False
 
         # 当前训练步或验证步的输入输出
         self.data: Dict[str, Any] = {}
@@ -163,6 +163,7 @@ class AccelerateEngine(Engine):
         self.unprepared_model = model
         self.callbacks.append(model)
         self.optimizer = model.get_optimizer(self)
+        self._is_prepared = False
 
     def load_model(self, ckpt: str | None = None) -> None:
         """
@@ -177,6 +178,7 @@ class AccelerateEngine(Engine):
             self.folder, ckpt
         ), map_location="cpu")
         self.unprepared_model.load_state_dict(state, strict=True)
+        self._is_prepared = False
 
     def set_dataset(
         self,
@@ -239,6 +241,7 @@ class AccelerateEngine(Engine):
                 self.val_dataloader,
             )
         )
+        self._is_prepared = True
 
         # 计算评估步数, 这里的步数指模型同步梯度的步数
         # 向上取整是因为dataloader末尾一定会同步一次梯度
@@ -373,6 +376,7 @@ class AccelerateEngine(Engine):
         self.model, self.test_dataloader = self.accelerator.prepare(
             self.unprepared_model, self.test_dataloader,
         )
+        self._is_prepared = True
 
         # 计算指标
         self.whole_output, _ = self.predict(
@@ -443,6 +447,10 @@ class AccelerateEngine(Engine):
         """
         执行模型自定义任务的接口
         """
+        if not self._is_prepared:
+            self.model = self.accelerator.prepare(self.unprepared_model)
+            self._is_prepared = True
+
         getattr(self.get_model(), task)(self, )
 
     def close(self, ) -> None:

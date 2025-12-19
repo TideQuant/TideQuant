@@ -223,7 +223,7 @@ class CSModel(Model):
             torch.randn(self.seq_len, 5736, self.dim),
             os.path.join(engine.folder, "model.onnx"),
             verbose=True,
-            opset_version=17,
+            opset_version=18,
             input_names=["x"],
             output_names=["y_pred"],
             dynamic_axes={

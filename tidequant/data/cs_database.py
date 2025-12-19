@@ -41,8 +41,10 @@ def slice_from_cs_da(
     """
 
     # 转化为xarray可用的左闭右闭slice
-    date_slice = _convert_slice_to_xr_slice(data.date, date_slice)
-    second_slice = _convert_slice_to_xr_slice(data.second, second_slice)
+    date_slice = _convert_slice_to_xr_slice(data.get_index("date"), date_slice)
+    second_slice = _convert_slice_to_xr_slice(
+        data.get_index("second"), second_slice
+    )
 
     sliced_data: xr.DataArray = data.sel(
         date=slice(date_slice.start, date_slice.stop)
@@ -482,8 +484,17 @@ class HDF5CSDataBase:
             coords={"date": self.dates, "second": self.seconds},
             dims=["date", "second"],
         )
+
+        # 左闭右开区间转化为左闭右闭区间
+        date_slice = _convert_slice_to_xr_slice(
+            time_grid.get_index("date"), date_slice
+        )
         date_slice_idx: slice = time_grid.get_index("date").slice_indexer(
             date_slice.start, date_slice.stop, date_slice.step
+        )
+
+        second_slice = _convert_slice_to_xr_slice(
+            time_grid.get_index("second"), second_slice
         )
         second_slice_idx: slice = time_grid.get_index("second").slice_indexer(
             second_slice.start, second_slice.stop, second_slice.step

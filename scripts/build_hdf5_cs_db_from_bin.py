@@ -30,7 +30,7 @@ def _read_and_save_hdf5(
     x = from_db.read_multi_data(
         mode="x",
         fields=fields,
-        date_slice=slice(date, date),
+        date_slice=slice(date, date + np.timedelta64(1, 'D')),
         n_worker=0,
     )
 

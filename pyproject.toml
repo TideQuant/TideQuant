@@ -21,7 +21,7 @@ dependencies = [
 ml = [
     "accelerate",
     "ray",
-    "torch",
+    "torch>=2.9.0",
     "transformers",
 ]
 
