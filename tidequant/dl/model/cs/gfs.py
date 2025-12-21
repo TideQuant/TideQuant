@@ -4,15 +4,17 @@
 https://arxiv.org/pdf/2503.13304
 """
 
+import os
 from typing import Any, Dict, List, Tuple
 
+import pandas as pd
 import torch
 from torch import nn
 
 from .mlp import Preprocessor
 from ..base import CSModel
 from ...engine import AccelerateEngine
-from ...ops import ic_loss, nanmedian
+from ...ops import ic_loss
 
 
 class GumbelSigmoidGate(nn.Module):
@@ -31,7 +33,7 @@ class GumbelSigmoidGate(nn.Module):
         keep_decay: float = 0.6,
         noise: float = 1.0,
         min_noise: float = 0.0,
-        noise_decay: float = 0.5,
+        noise_decay: float = 0.4,
     ) -> None:
         super().__init__()
 
@@ -187,4 +189,16 @@ class GFSNetwork(CSModel):
             f"tau: {self.gate.tau}, "
             f"keep: {self.gate.keep}, "
             f"noise: {self.gate.noise}"
+        )
+
+    def on_val_end(self, engine: AccelerateEngine) -> None:
+        """
+        储存每次验证结束后的重要度得分
+        """
+        importance_df = pd.DataFrame(
+            {"gfs": self.gate.get_importance().detach().cpu().numpy()},
+            index=self.x_fields
+        ).sort_values("gfs", ascending=False)
+        importance_df.to_csv(
+            os.path.join(engine.folder, f"importance_{engine.current_step}.csv")
         )

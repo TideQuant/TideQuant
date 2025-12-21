@@ -8,13 +8,13 @@
 
 import inspect
 import json
-import jsonargparse
 import os
 import sys
-from jsonargparse._util import import_object
 from typing import Any, Dict, List, Type
 
+import jsonargparse
 import numpy as np
+from jsonargparse._util import import_object
 from setproctitle import setproctitle
 
 from tidequant.dl import (
@@ -50,7 +50,7 @@ def get_args() -> jsonargparse.Namespace:
     parser.add_argument(
         "--task",
         type=str,
-        nargs='+',
+        nargs='*',
         default=["save_test_y", "export_onnx", "export_jit"],
     )
 
