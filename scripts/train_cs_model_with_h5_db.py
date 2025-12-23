@@ -51,7 +51,7 @@ def get_args() -> jsonargparse.Namespace:
         "--task",
         type=str,
         nargs='*',
-        default=["save_test_y", "export_onnx", "export_jit"],
+        default=["save_test_y", ],
     )
 
     # 配置AccelerateEngine

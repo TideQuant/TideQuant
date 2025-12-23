@@ -8,8 +8,8 @@ import torch
 import pandas as pd
 from torch import nn
 
-from ...ops import nanmedian, rank
 from ..base import CSModel
+from ...ops import nanmedian, rank
 
 
 class Preprocessor(nn.Module):

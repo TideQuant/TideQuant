@@ -15,6 +15,7 @@ from .mlp import Preprocessor
 from ..base import CSModel
 from ...engine import AccelerateEngine
 from ...ops import ic_loss
+from ....utils.io import write_txt_lines
 
 
 class GumbelSigmoidGate(nn.Module):
@@ -33,7 +34,7 @@ class GumbelSigmoidGate(nn.Module):
         keep_decay: float = 0.6,
         noise: float = 1.0,
         min_noise: float = 0.0,
-        noise_decay: float = 0.4,
+        noise_decay: float = 0.5,
     ) -> None:
         super().__init__()
 
@@ -89,6 +90,15 @@ class GFSNetwork(CSModel):
         x_fields: List[str],
         y_fields: List[str],
         stats_csv_file: str = "",
+        tau: float = 2.0,
+        min_tau: float = 0.3,
+        tau_decay: float = 0.83,
+        keep: float = 1.0,
+        min_keep: float = 0.05,
+        keep_decay: float = 0.6,
+        noise: float = 1.0,
+        min_noise: float = 0.0,
+        noise_decay: float = 0.5,
     ) -> None:
         super().__init__(
             x_fields=x_fields,
@@ -100,7 +110,18 @@ class GFSNetwork(CSModel):
             return_list=["winsor_min_max", ],
             stats_csv_file=stats_csv_file,
         )
-        self.gate = GumbelSigmoidGate(self.preprocessor.output_dim)
+        self.gate = GumbelSigmoidGate(
+            self.preprocessor.output_dim,
+            tau=tau,
+            min_tau=min_tau,
+            tau_decay=tau_decay,
+            keep=keep,
+            min_keep=min_keep,
+            keep_decay=keep_decay,
+            noise=noise,
+            min_noise=min_noise,
+            noise_decay=noise_decay,
+        )
 
         self.linear = nn.Sequential(
             nn.Linear(self.preprocessor.output_dim, 2048),
@@ -128,7 +149,7 @@ class GFSNetwork(CSModel):
             nn.LeakyReLU(),
             nn.Dropout(0.1),
 
-            nn.Linear(128, 1),
+            nn.Linear(128, len(y_fields)),
         )
 
         self._init_weight()
@@ -193,8 +214,9 @@ class GFSNetwork(CSModel):
 
     def on_val_end(self, engine: AccelerateEngine) -> None:
         """
-        储存每次验证结束后的重要度得分
+        储存每次验证结束后的重要度得分和选中的因子
         """
+        # 保存重要度得分
         importance_df = pd.DataFrame(
             {"gfs": self.gate.get_importance().detach().cpu().numpy()},
             index=self.x_fields
@@ -202,3 +224,11 @@ class GFSNetwork(CSModel):
         importance_df.to_csv(
             os.path.join(engine.folder, f"importance_{engine.current_step}.csv")
         )
+
+        # 保存选中的因子
+        cut: float = importance_df["gfs"].quantile(1 - self.gate.min_keep)
+        select_x: List[str] = importance_df["gfs"][importance_df["gfs"] >= cut].index.tolist()
+        select_x.sort()
+        write_txt_lines(os.path.join(
+            engine.folder, f"x_{engine.current_step}.txt"
+        ), select_x)
