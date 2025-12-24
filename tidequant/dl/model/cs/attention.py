@@ -125,4 +125,3 @@ class Attention(CSModel):
         std: torch.Tensor = y_pred.std(dim=-2, keepdim=True)
         y_pred = (y_pred - mean) / std
         return {"y_pred": y_pred}
-

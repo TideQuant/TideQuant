@@ -18,11 +18,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ml = [
+dl = [
     "accelerate",
     "ray",
     "torch>=2.9.0",
     "transformers",
+]
+
+ml = [
+  "lightgbm",
+  "sklearn",
 ]
 
 [tool.setuptools]
