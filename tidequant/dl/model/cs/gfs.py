@@ -89,7 +89,7 @@ class GFSNetwork(CSModel):
         self,
         x_fields: List[str],
         y_fields: List[str],
-        stats_csv_file: str = "",
+        stats_csv_file: str,
         tau: float = 2.0,
         min_tau: float = 0.3,
         tau_decay: float = 0.83,
@@ -107,11 +107,10 @@ class GFSNetwork(CSModel):
 
         self.preprocessor = Preprocessor(
             x_fields=x_fields,
-            return_list=["winsor_min_max", ],
             stats_csv_file=stats_csv_file,
         )
         self.gate = GumbelSigmoidGate(
-            self.preprocessor.output_dim,
+            len(x_fields),
             tau=tau,
             min_tau=min_tau,
             tau_decay=tau_decay,
@@ -173,7 +172,7 @@ class GFSNetwork(CSModel):
                     nn.init.constant_(m.bias, 0)
 
     def forward(self, data: Dict[str, Any]) -> Dict[str, torch.Tensor]:
-        x: torch.Tensor = self.preprocessor(data["x"])
+        x: torch.Tensor = self.preprocessor(data["x"], "winsor_min_max")
 
         # 推理得到输出
         b, t, n, d = x.shape

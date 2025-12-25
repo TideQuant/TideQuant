@@ -143,7 +143,7 @@ def ic_loss(
 
     自动忽略nan
     """
-    
+
     assert y.shape == y_pred.shape
 
     mask: torch.Tensor = ~torch.isnan(y)
@@ -252,11 +252,13 @@ def tail_weight_ic_loss(
     y: torch.Tensor,
     y_pred: torch.Tensor,
     dim: int,
-    tail_q: float = 0.2,
-    tail_w: float = 3.0,
+    tail_quantile: float = 0.2,
+    tail_weight: float = 3.0,
 ) -> torch.Tensor:
     """
-    计算两个tensor之间尾部加权横截面ic
+    计算两个tensor之间的尾部加权的横截面ic
+
+    加权方式是根据分位数确定的阶跃加权
 
     dim表示进行ic计算的维度, 其他维度取平均
 
@@ -264,46 +266,88 @@ def tail_weight_ic_loss(
     """
 
     assert y.shape == y_pred.shape
+    assert 0.0 <= tail_quantile <= 0.5
+    assert tail_weight > 0.0
 
-    mask = torch.isfinite(y) & torch.isfinite(y_pred)
-    y0 = torch.nan_to_num(y, nan=0.0)
-    p0 = torch.nan_to_num(y_pred, nan=0.0)
+    mask: torch.Tensor = ~torch.isnan(y)
+    q_low, q_high = torch.nanquantile(
+        y, [tail_quantile, 1.0 - tail_quantile], dim=dim, keepdim=True
+    )
+    y = torch.nan_to_num(y, nan=0.0)
 
-    # y 的“分位位置” qpos in [0,1]（用 rank 近似）
-    y_fill = y0.masked_fill(~mask, float("inf"))
-    sort_idx = torch.argsort(y_fill, dim=dim)
-    ranks = torch.empty_like(sort_idx, dtype=y0.dtype)
-    ar = torch.arange(y.size(dim), device=y.device, dtype=y0.dtype)
-    view = [1] * y.ndim
-    view[dim] = -1
-    ranks.scatter_(dim, sort_idx, ar.view(view).expand_as(sort_idx))
+    # 上下尾都加权, nan 比较会是 False, 不会误入尾部
+    tail_mask: torch.Tensor = (y <= q_low) | (y >= q_high)
+    weight: torch.Tensor = mask.to(y.dtype) * (
+        1.0 + (tail_weight - 1.0) * tail_mask.to(y.dtype)
+    )
 
-    n_valid = mask.sum(dim=dim, keepdim=True)
-    qpos = (ranks / (n_valid - 1).clamp_min(1)).masked_fill(~mask, float("nan"))
+    # 计算加权均值
+    w_sum: torch.Tensor = torch.sum(weight, dim=dim, keepdim=True)
+    y_mean: torch.Tensor = torch.sum(
+        y * weight, dim=dim, keepdim=True
+    ) / (w_sum + 1e-8)
+    y_pred_mean: torch.Tensor = torch.sum(
+        y_pred * weight, dim=dim, keepdim=True
+    ) / (w_sum + 1e-8)
 
-    # 权重：硬头尾 or 平滑头尾
-    if smooth_gamma is None:
-        w = torch.full_like(y0, mid_w)
-        w = torch.where(qpos <= q, y0.new_tensor(tail_w), w)
-        w = torch.where(qpos >= 1.0 - q, y0.new_tensor(head_w), w)
-    else:
-        dist = torch.nan_to_num((qpos - 0.5).abs() * 2.0, nan=0.0)  # 0(中间) -> 1(两端)
-        ext = torch.where(qpos >= 0.5, y0.new_tensor(head_w), y0.new_tensor(tail_w))
-        w = mid_w + (ext - mid_w) * dist.pow(float(smooth_gamma))
+    # 计算标准差和协方差
+    w_sqrt: torch.Tensor = torch.sqrt(weight)
+    y_center: torch.Tensor = (y - y_mean) * w_sqrt
+    y_pred_center: torch.Tensor = (y_pred - y_pred_mean) * w_sqrt
+    cov: torch.Tensor = torch.sum(y_center * y_pred_center, dim=dim)
+    y_var: torch.Tensor = torch.sum(y_center * y_center, dim=dim)
+    y_pred_var: torch.Tensor = torch.sum(y_pred_center * y_pred_center, dim=dim)
 
-    w = w.masked_fill(~mask, 0.0)
+    # 计算相关系数
+    ic: torch.Tensor = cov / (torch.sqrt((y_var + 1e-8) * (y_pred_var + 1e-8)))
+    return -torch.nanmean(ic)
 
-    # 加权 Pearson IC
-    wsum = torch.sum(w, dim=dim, keepdim=True)
-    y_mean = torch.sum(y0 * w, dim=dim, keepdim=True) / (wsum + eps)
-    p_mean = torch.sum(p0 * w, dim=dim, keepdim=True) / (wsum + eps)
 
-    yc = y0 - y_mean
-    pc = p0 - p_mean
-    cov = torch.sum(w * yc * pc, dim=dim)
-    y_var = torch.sum(w * yc * yc, dim=dim)
-    p_var = torch.sum(w * pc * pc, dim=dim)
+def abs_weight_ic_loss(
+    y: torch.Tensor,
+    y_pred: torch.Tensor,
+    dim: int,
+    scale: float = 1.0,
+    max_weight: float = 3.0,
+) -> torch.Tensor:
+    """
+    计算两个tensor之间的尾部加权的横截面ic
 
-    ic = cov / (torch.sqrt(y_var + eps) * torch.sqrt(p_var + eps) + eps)
-    ic = ic.masked_fill(n_valid.squeeze(dim) < 2, float("nan"))
+    加权方式是根据|y|的平滑函数
+
+    dim表示进行ic计算的维度, 其他维度取平均
+
+    自动忽略nan
+    """
+    assert y.shape == y_pred.shape
+    assert scale > 0.0
+    assert max_weight > 0.0
+
+    mask: torch.Tensor = ~torch.isnan(y)
+    y = torch.nan_to_num(y, nan=0.0)
+
+    # 连续权重[1, max_weight]
+    abs_y: torch.Tensor = torch.abs(y)
+    base: torch.Tensor = abs_y / (abs_y + scale)
+    weight: torch.Tensor = mask.to(y.dtype) * (
+        1.0 + (max_weight - 1.0) * base
+    )
+
+    # 计算加权均值
+    w_sum: torch.Tensor = torch.sum(weight, dim=dim, keepdim=True)
+    y_mean: torch.Tensor = torch.sum(y * weight, dim=dim, keepdim=True) / (w_sum + 1e-8)
+    y_pred_mean: torch.Tensor = torch.sum(
+        y_pred * weight, dim=dim, keepdim=True
+    ) / (w_sum + 1e-8)
+
+    # 计算标准差和协方差
+    w_sqrt: torch.Tensor = torch.sqrt(weight)
+    y_center: torch.Tensor = (y - y_mean) * w_sqrt
+    y_pred_center: torch.Tensor = (y_pred - y_pred_mean) * w_sqrt
+    cov: torch.Tensor = torch.sum(y_center * y_pred_center, dim=dim)
+    y_var: torch.Tensor = torch.sum(y_center * y_center, dim=dim)
+    y_pred_var: torch.Tensor = torch.sum(y_pred_center * y_pred_center, dim=dim)
+
+    # 计算相关系数
+    ic: torch.Tensor = cov / (torch.sqrt(y_var + 1e-8) * torch.sqrt(y_pred_var + 1e-8))
     return -torch.nanmean(ic)

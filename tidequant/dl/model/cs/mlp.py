@@ -5,13 +5,10 @@
 from typing import Dict, List
 
 import torch
-import pandas as pd
 from torch import nn
 
 from .preprocessor import Preprocessor
 from ..base import CSModel
-from ...ops import nanmedian, rank
-
 
 
 class ConcatMLP(CSModel):
@@ -24,7 +21,7 @@ class ConcatMLP(CSModel):
         x_fields: List[str],
         y_fields: List[str],
         prep_names: List[str],
-        stats_csv_file: str = "",
+        stats_csv_file: str,
     ) -> None:
         super().__init__(
             x_fields=x_fields,
@@ -115,7 +112,7 @@ class WeightSumMLP(CSModel):
         x_fields: List[str],
         y_fields: List[str],
         prep_names: List[str],
-        stats_csv_file: str = "",
+        stats_csv_file: str,
     ) -> None:
         super().__init__(
             x_fields=x_fields,
@@ -129,7 +126,6 @@ class WeightSumMLP(CSModel):
             stats_csv_file=stats_csv_file,
         )
         self.linears = nn.ModuleList(nn.Sequential(
-            # TODO: 不同预处理增加的维度可能不同
             nn.Linear(len(x_fields), 2048),
             nn.BatchNorm1d(2048),
             nn.LeakyReLU(),
@@ -187,11 +183,11 @@ class WeightSumMLP(CSModel):
         for i, linear in enumerate(self.linears):
             x_prep: torch.Tensor = self.preprocessor(x, self.prep_names[i])
             y_pred_list.append(
-                linear(x_prep.reshape(-1, d)).reshape(b, n, -1)
+                linear(x_prep.reshape(-1, x_prep.shape[-1])).reshape(b, n, -1)
             )
 
         y_pred: torch.Tensor = torch.stack(y_pred_list, dim=-1)
-        y_pred = (y_pred * self.weights).sum(dim=-1)
+        y_pred = (y_pred * torch.softmax(self.weights, dim=0)).sum(dim=-1)
 
         # 对输出标准化
         mean: torch.Tensor = y_pred.mean(dim=-2, keepdim=True)

@@ -1,7 +1,5 @@
-from .attention import Attention
-
 from .gfs import GFSNetwork
 
-from .mlp import MLP
+from .mlp import ConcatMLP, WeightSumMLP
 
-from .mlp_weight_ic import MLPWeightIC
+from .wic_mlp import WICMLP

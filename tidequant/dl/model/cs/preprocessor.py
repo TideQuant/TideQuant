@@ -2,14 +2,12 @@
 因子预处理类
 """
 
-from multiprocessing import Value
-from typing import Dict, List
+from typing import List
 
 import torch
 import pandas as pd
 from torch import nn
 
-from ..base import CSModel
 from ...ops import nanmedian, rank
 
 
@@ -17,20 +15,19 @@ class Preprocessor(nn.Module):
     """
     因子输入预处理类
 
-    根据return list返回预处理后的因子
+    根据传入的name返回不同的预处理结果
     """
 
     def __init__(
         self,
         x_fields: List[str],
-        stats_csv_file: str = "",
+        stats_csv_file: str,
     ) -> None:
         super().__init__()
 
-        stats: pd.DataFrame | None = pd.read_csv(
+        stats: pd.DataFrame = pd.read_csv(
             stats_csv_file, index_col=0
-        ) if stats_csv_file != "" else None
-    
+        )
         self.register_buffer(
             "x_1",
             torch.tensor(
