@@ -135,7 +135,6 @@ def ic_loss(
     y: torch.Tensor,
     y_pred: torch.Tensor,
     dim: int,
-    mean: bool = True,
 ) -> torch.Tensor:
     """
     计算两个tensor之间的横截面ic
@@ -168,9 +167,7 @@ def ic_loss(
 
     # 计算相关系数
     ic: torch.Tensor = cov / (torch.sqrt((y_var + 1e-8) * (y_pred_var + 1e-8)))
-    if mean:
-        return -torch.nanmean(ic)
-    return -ic
+    return -torch.nanmean(ic)
 
 
 def soft_rank(
@@ -251,19 +248,62 @@ def rank_ic_loss(
     return loss / y.shape[0]
 
 
-def skew_loss(
-    x: torch.Tensor,
+def tail_weight_ic_loss(
+    y: torch.Tensor,
+    y_pred: torch.Tensor,
     dim: int,
-    target: float = 0.0,
-    p: int = 1,
+    tail_q: float = 0.2,
+    tail_w: float = 3.0,
 ) -> torch.Tensor:
     """
-    计算在dim维度上的偏度损失, 默认通过mean聚合
+    计算两个tensor之间尾部加权横截面ic
+
+    dim表示进行ic计算的维度, 其他维度取平均
+
+    自动忽略nan
     """
 
-    mean: torch.Tensor = x.mean(dim=dim, keepdim=True)
-    diff: torch.Tensor = x - mean
-    var: torch.Tensor = (diff ** 2).mean(dim=dim, keepdim=True)
-    std: torch.Tensor = (var + 1e-8).sqrt()
-    skew = (diff / std).pow(3).mean(dim=dim)
-    return (skew - target).abs().pow(p).mean()
+    assert y.shape == y_pred.shape
+
+    mask = torch.isfinite(y) & torch.isfinite(y_pred)
+    y0 = torch.nan_to_num(y, nan=0.0)
+    p0 = torch.nan_to_num(y_pred, nan=0.0)
+
+    # y 的“分位位置” qpos in [0,1]（用 rank 近似）
+    y_fill = y0.masked_fill(~mask, float("inf"))
+    sort_idx = torch.argsort(y_fill, dim=dim)
+    ranks = torch.empty_like(sort_idx, dtype=y0.dtype)
+    ar = torch.arange(y.size(dim), device=y.device, dtype=y0.dtype)
+    view = [1] * y.ndim
+    view[dim] = -1
+    ranks.scatter_(dim, sort_idx, ar.view(view).expand_as(sort_idx))
+
+    n_valid = mask.sum(dim=dim, keepdim=True)
+    qpos = (ranks / (n_valid - 1).clamp_min(1)).masked_fill(~mask, float("nan"))
+
+    # 权重：硬头尾 or 平滑头尾
+    if smooth_gamma is None:
+        w = torch.full_like(y0, mid_w)
+        w = torch.where(qpos <= q, y0.new_tensor(tail_w), w)
+        w = torch.where(qpos >= 1.0 - q, y0.new_tensor(head_w), w)
+    else:
+        dist = torch.nan_to_num((qpos - 0.5).abs() * 2.0, nan=0.0)  # 0(中间) -> 1(两端)
+        ext = torch.where(qpos >= 0.5, y0.new_tensor(head_w), y0.new_tensor(tail_w))
+        w = mid_w + (ext - mid_w) * dist.pow(float(smooth_gamma))
+
+    w = w.masked_fill(~mask, 0.0)
+
+    # 加权 Pearson IC
+    wsum = torch.sum(w, dim=dim, keepdim=True)
+    y_mean = torch.sum(y0 * w, dim=dim, keepdim=True) / (wsum + eps)
+    p_mean = torch.sum(p0 * w, dim=dim, keepdim=True) / (wsum + eps)
+
+    yc = y0 - y_mean
+    pc = p0 - p_mean
+    cov = torch.sum(w * yc * pc, dim=dim)
+    y_var = torch.sum(w * yc * yc, dim=dim)
+    p_var = torch.sum(w * pc * pc, dim=dim)
+
+    ic = cov / (torch.sqrt(y_var + eps) * torch.sqrt(p_var + eps) + eps)
+    ic = ic.masked_fill(n_valid.squeeze(dim) < 2, float("nan"))
+    return -torch.nanmean(ic)

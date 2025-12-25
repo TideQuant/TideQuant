@@ -193,10 +193,10 @@ class MLPWeightIC(CSModel):
 def weighted_ic_loss(
     pred: torch.Tensor,
     target: torch.Tensor,
-    head_q: float = 0.9,
-    tail_q: float = 0.1,
-    head_weight: float = 2.0,
-    tail_weight: float = 2.0,
+    head_q: float = 0.8,
+    tail_q: float = 0.2,
+    head_weight: float = 3.0,
+    tail_weight: float = 3.0,
     mid_weight: float = 1.0,
     eps: float = 1e-8,
 ) -> Tuple[torch.Tensor, float]:
