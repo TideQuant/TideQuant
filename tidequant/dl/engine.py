@@ -59,6 +59,7 @@ class AccelerateEngine(Engine):
 
     params: Dict[str, Any] = {
         "seed": 42,
+        "mixed_precision": "no",
 
         "lr": 0.001,
         "weight_decay": 0.0,
@@ -91,6 +92,7 @@ class AccelerateEngine(Engine):
         # 初始化accelerator
         accelerate.utils.set_seed(self.params["seed"])
         self.accelerator = Accelerator(
+            mixed_precision=self.params["mixed_precision"],
             gradient_accumulation_steps=self.params["n_grad_acc_step"],
             dataloader_config=accelerate.utils.DataLoaderConfiguration(
                 non_blocking=True

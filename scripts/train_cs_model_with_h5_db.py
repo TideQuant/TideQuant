@@ -96,7 +96,7 @@ def get_parser() -> jsonargparse.ArgumentParser:
     return parser
 
 
-def run_once(args: jsonargparse.Namespace) -> None:
+def run_once(args: jsonargparse.Namespace) -> float:
     """
     执行一次训练
     """
@@ -200,7 +200,9 @@ def run_once(args: jsonargparse.Namespace) -> None:
     for task in args.task:
         engine.run(task)
 
+    best_metric: float = engine.callbacks[0].best_metric
     engine.close()
+    return best_metric
 
 
 if __name__ == "__main__":
