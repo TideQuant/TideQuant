@@ -123,7 +123,7 @@ class GFSNetwork(CSModel):
         )
 
         self.linear = nn.Sequential(
-            nn.Linear(self.preprocessor.output_dim, 2048),
+            nn.Linear(len(x_fields), 2048),
             nn.BatchNorm1d(2048),
             nn.LeakyReLU(),
             nn.Dropout(0.8),

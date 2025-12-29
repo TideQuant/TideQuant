@@ -72,6 +72,9 @@ class Preprocessor(nn.Module):
         if name == "robust_zscore":
             return self.robust_zscore(x)
 
+        if name == "log1p":
+            return self.log1p(x)
+
         raise ValueError(f"{name} is not supported")
 
     def winsor_min_max(self, x: torch.Tensor) -> torch.Tensor:
@@ -107,9 +110,9 @@ class Preprocessor(nn.Module):
         """
         assert x.ndim == 4
 
-        q25, q50, q75 = torch.nanquantile(
-            x, [0.25, 0.50, 0.75], dim=-2, keepdim=True
-        )
+        q25: torch.Tensor = torch.nanquantile(x, 0.25, dim=-2, keepdim=True)
+        q50: torch.Tensor = torch.nanquantile(x, 0.50, dim=-2, keepdim=True)
+        q75: torch.Tensor = torch.nanquantile(x, 0.75, dim=-2, keepdim=True)
         iqr: torch.Tensor = q75 - q25
         x = (x - q50) / (1.35 * iqr)
 
@@ -127,3 +130,29 @@ class Preprocessor(nn.Module):
         
         x[torch.isnan(x)] = 0.0
         return torch.clamp(x, min=-3, max=3)
+
+    def log1p(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        log1p预处理
+        """
+        assert x.ndim == 4
+
+        x = torch.where(
+            torch.isnan(x),
+            # self.x_median.reshape(1, 1, 1, -1),
+            nanmedian(x, dim=-2, keepdim=True)[0],
+            x,
+        )
+        x = torch.where(x >= 0, torch.log(x + 1), -torch.log(-x + 1))
+        x_1: torch.Tensor = torch.where(
+            self.x_1 >= 0, torch.log(self.x_1 + 1), -torch.log(-self.x_1 + 1)
+        )
+        x_99: torch.Tensor = torch.where(
+            self.x_99 >= 0, torch.log(self.x_99 + 1), -torch.log(-self.x_99 + 1)
+        )
+        x = (x - x_1) / (x_99 - x_1)
+        x = torch.clamp(x, min=0, max=1)
+
+        # 如果min和max中包含nan的话，那么会出现新的nan
+        x[torch.isnan(x)] = 0.0
+        return x

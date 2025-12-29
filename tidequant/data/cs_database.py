@@ -447,7 +447,7 @@ class HDF5CSDataBase:
         )
 
         # 读取一个文件检查shape是否正确
-        with h5py.File(self.files[0], "r") as f:
+        with h5py.File(self.files[0], "r", locking=False) as f:
             x_shape: Tuple[int, ...] = f["x"].shape
             assert x_shape == (
                 1, len(self.seconds), len(self.tickers), len(self.x_fields),
@@ -455,7 +455,6 @@ class HDF5CSDataBase:
 
         # 维护一个句柄池, 在读取到相应文件时再打开句柄
         self.handle_pool = H5HandlePool(self.files)
-        self._set_x_slices: bool = False
 
     def get_x_with_time_idx(self, idx: int) -> np.ndarray:
         """

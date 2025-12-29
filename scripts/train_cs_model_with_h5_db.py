@@ -22,6 +22,7 @@ from tidequant.dl import (
     Callback,
     EarlyStopSaver,
     HDF5CSDataset,
+    RayTuneReport,
     WarmUpSchedule,
     get_ckpt,
 )
@@ -32,7 +33,7 @@ from tidequant.utils import validate_float_to_int
 setproctitle("cross sectional model training")
 
 
-def get_args() -> jsonargparse.Namespace:
+def get_parser() -> jsonargparse.ArgumentParser:
     """
     从命令行获取参数
     """
@@ -67,6 +68,7 @@ def get_args() -> jsonargparse.Namespace:
     parser.add_argument("--patience", type=int, default=8)
     parser.add_argument("--max_n_val", type=int, default=sys.maxsize)
     parser.add_argument("--warmup_ratio", type=float, default=0.0)
+    parser.add_argument("--rt_report", action="store_true")
 
     # 配置Dataset
     parser.add_argument("--bin_folder", type=str, required=True)
@@ -91,7 +93,7 @@ def get_args() -> jsonargparse.Namespace:
         skip={"x_fields", "y_fields", "seq_len"},
         instantiate=False,
     )
-    return parser.parse_args()
+    return parser
 
 
 def run_once(args: jsonargparse.Namespace) -> None:
@@ -107,6 +109,9 @@ def run_once(args: jsonargparse.Namespace) -> None:
     )]
     if args.warmup_ratio > 0:
         callbacks.append(WarmUpSchedule(args.warmup_ratio))
+
+    if args.rt_report:
+        callbacks.append(RayTuneReport(args.metric_name))
 
     engine = AccelerateEngine(
         folder=args.engine.folder,
@@ -199,7 +204,7 @@ def run_once(args: jsonargparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    args: jsonargparse.Namespace = get_args()
+    args: jsonargparse.Namespace = get_parser().parse_args()
     run_once(args)
 
     base_folder: str = args.engine.folder

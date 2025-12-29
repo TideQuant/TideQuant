@@ -1,3 +1,5 @@
+from .ops import corr
+
 from .callback import Callback, EarlyStopSaver, RayTuneReport, WarmUpSchedule
 
 from .dataset import HDF5CSDataset

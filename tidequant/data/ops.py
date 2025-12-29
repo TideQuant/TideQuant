@@ -57,7 +57,10 @@ def _ic_1d(x1: np.ndarray, x2: np.ndarray, rank: bool = False) -> float:
     return np.corrcoef(x1[mask], x2[mask])[0, 1]
 
 
-def zscore(x: np.ndarray | xr.DataArray, axis: int) -> np.ndarray:
+def zscore(
+    x: np.ndarray | xr.DataArray,
+    axis: int,
+) -> np.ndarray | xr.DataArray:
     """
     对x按照某一维度做zscore
 

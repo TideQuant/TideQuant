@@ -95,6 +95,34 @@ def nanmedian(
     return vals, idxs
 
 
+def corr(x: torch.Tensor) -> torch.Tensor:
+    """
+    计算x的相关系数矩阵, x的形状为(n, d)代表n类样本, d个采样点
+
+    返回n*n的相关系数矩阵
+    """
+
+    assert x.ndim == 2
+
+    mask: torch.Tensor = torch.isfinite(x).to(dtype=x.dtype)
+    x = torch.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
+
+    count: torch.Tensor = mask @ mask.T
+    x_sum: torch.Tensor = x @ mask.T
+    x2_sum: torch.Tensor = (x * x) @ mask.T
+    xy_sum: torch.Tensor = x @ x.T
+
+    denom_n: torch.Tensor = count + 1e-8
+    cov: torch.Tensor = xy_sum - (x_sum * x_sum.T) / denom_n
+    x_var: torch.Tensor = x2_sum - (x_sum * x_sum) / denom_n
+    corr: torch.Tensor = cov / torch.sqrt((x_var + 1e-8) * (x_var.T + 1e-8))
+
+    valid: torch.Tensor = (
+        (count >= 2) & (x_var > 1e-8) & (x_var.T > 1e-8) & torch.isfinite(corr)
+    )
+    return torch.where(valid, corr, torch.full_like(corr, float("nan")))
+
+
 """
 损失函数
 """
@@ -270,12 +298,15 @@ def tail_weight_ic_loss(
     assert tail_weight > 0.0
 
     mask: torch.Tensor = ~torch.isnan(y)
-    q_low, q_high = torch.nanquantile(
-        y, [tail_quantile, 1.0 - tail_quantile], dim=dim, keepdim=True
+    q_low: torch.Tensor = torch.nanquantile(
+        y, tail_quantile, dim=dim, keepdim=True
+    )
+    q_high: torch.Tensor = torch.nanquantile(
+        y, 1.0 - tail_quantile, dim=dim, keepdim=True
     )
     y = torch.nan_to_num(y, nan=0.0)
 
-    # 上下尾都加权, nan 比较会是 False, 不会误入尾部
+    # 上下尾都加权, nan比较会是False, 不会误入尾部
     tail_mask: torch.Tensor = (y <= q_low) | (y >= q_high)
     weight: torch.Tensor = mask.to(y.dtype) * (
         1.0 + (tail_weight - 1.0) * tail_mask.to(y.dtype)
@@ -300,54 +331,4 @@ def tail_weight_ic_loss(
 
     # 计算相关系数
     ic: torch.Tensor = cov / (torch.sqrt((y_var + 1e-8) * (y_pred_var + 1e-8)))
-    return -torch.nanmean(ic)
-
-
-def abs_weight_ic_loss(
-    y: torch.Tensor,
-    y_pred: torch.Tensor,
-    dim: int,
-    scale: float = 1.0,
-    max_weight: float = 3.0,
-) -> torch.Tensor:
-    """
-    计算两个tensor之间的尾部加权的横截面ic
-
-    加权方式是根据|y|的平滑函数
-
-    dim表示进行ic计算的维度, 其他维度取平均
-
-    自动忽略nan
-    """
-    assert y.shape == y_pred.shape
-    assert scale > 0.0
-    assert max_weight > 0.0
-
-    mask: torch.Tensor = ~torch.isnan(y)
-    y = torch.nan_to_num(y, nan=0.0)
-
-    # 连续权重[1, max_weight]
-    abs_y: torch.Tensor = torch.abs(y)
-    base: torch.Tensor = abs_y / (abs_y + scale)
-    weight: torch.Tensor = mask.to(y.dtype) * (
-        1.0 + (max_weight - 1.0) * base
-    )
-
-    # 计算加权均值
-    w_sum: torch.Tensor = torch.sum(weight, dim=dim, keepdim=True)
-    y_mean: torch.Tensor = torch.sum(y * weight, dim=dim, keepdim=True) / (w_sum + 1e-8)
-    y_pred_mean: torch.Tensor = torch.sum(
-        y_pred * weight, dim=dim, keepdim=True
-    ) / (w_sum + 1e-8)
-
-    # 计算标准差和协方差
-    w_sqrt: torch.Tensor = torch.sqrt(weight)
-    y_center: torch.Tensor = (y - y_mean) * w_sqrt
-    y_pred_center: torch.Tensor = (y_pred - y_pred_mean) * w_sqrt
-    cov: torch.Tensor = torch.sum(y_center * y_pred_center, dim=dim)
-    y_var: torch.Tensor = torch.sum(y_center * y_center, dim=dim)
-    y_pred_var: torch.Tensor = torch.sum(y_pred_center * y_pred_center, dim=dim)
-
-    # 计算相关系数
-    ic: torch.Tensor = cov / (torch.sqrt(y_var + 1e-8) * torch.sqrt(y_pred_var + 1e-8))
     return -torch.nanmean(ic)
