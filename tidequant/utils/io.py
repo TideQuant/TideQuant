@@ -72,5 +72,5 @@ def write_txt_lines(file: str, contents: List[str]) -> None:
 
     with open(file, 'w') as f:
         for content in contents:
-            f.write(content)
+            f.write(str(content))
             f.write('\n')

@@ -29,8 +29,6 @@ def search(config: Dict[str, Any]) -> None:
     _args.test = False
     _args.engine.folder = os.path.join(_args.folder, str(time.time()))
     _args.engine.create_folder = True
-    # 将早停的控制权限交给ray
-    _args.patience = 100
     _args.rt_report = True
 
     # 根据权重计算y_fields
@@ -81,16 +79,18 @@ if __name__ == "__main__":
             args.all_yields.append(field)
 
     # 构造space
-    space: Dict[str, float] = {
+    space: Dict = {
         f"w{i}": tune.uniform(0.0, 1.0) for i in range(len(args.all_yields))
     }
     space["topk"] = tune.randint(3, 5)
 
     tuner = tune.Tuner(
-    tune.with_resources(search, {"cpu": 8, "gpu": 1}),
+        tune.with_resources(search, {"cpu": 8, "gpu": 1}),
         param_space=space,
         tune_config=tune.TuneConfig(
-            metric=args.metric_name, mode="max", num_samples=1000,
+            metric=args.metric_name,
+            mode="max",
+            num_samples=1000,
             search_alg=OptunaSearch(
                 sampler=TPESampler(
                     n_startup_trials=30,
@@ -98,15 +98,15 @@ if __name__ == "__main__":
                     seed=42,
                 ),
             ),
-            scheduler=ASHAScheduler(
-                max_t=20,
-                grace_period=10,
-                reduction_factor=2,
-            ),
+            # scheduler=ASHAScheduler(
+            #     max_t=20,
+            #     grace_period=10,
+            #     reduction_factor=2,
+            # ),
         ),
         run_config=air.RunConfig(
             name="search",
-            stop={"training_iteration": 20},
+            # stop={"training_iteration": 20},
             verbose=0,
         ),
     )

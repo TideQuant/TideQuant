@@ -52,7 +52,7 @@ def get_parser() -> jsonargparse.ArgumentParser:
         "--task",
         type=str,
         nargs='*',
-        default=["save_test_y", ],
+        default=[],
     )
 
     # 配置AccelerateEngine

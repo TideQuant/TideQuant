@@ -85,7 +85,7 @@ class Preprocessor(nn.Module):
 
         x = torch.where(
             torch.isnan(x),
-            # self.x_median.reshape(1, 1, 1, -1),
+            # self.x_50.reshape(1, 1, 1, -1),
             nanmedian(x, dim=-2, keepdim=True)[0],
             x,
         )
