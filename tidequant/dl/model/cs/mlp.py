@@ -197,9 +197,9 @@ class WeightSumMLP(CSModel):
         return {"y_pred": y_pred}
 
 
-class LinearAttention(nn.Module):
+class DiagAttention(nn.Module):
     """
-    线性可分注意力模块
+    对角注意力模块
 
     QKV均为对角矩阵, 相当于对原始输入进行缩放
     """
@@ -225,110 +225,11 @@ class LinearAttention(nn.Module):
         return x + atn_x
 
 
-class AtnConcatMLP(CSModel):
-    """
-    将多个预处理concat起来输入的MLP
-
-    首层为LinearAttention
-    """
-
-    def __init__(
-        self,
-        x_fields: List[str],
-        y_fields: List[str],
-        prep_names: List[str],
-        stats_csv_file: str,
-        atn_dropout: float = 0.7,
-    ) -> None:
-        super().__init__(
-            x_fields=x_fields,
-            y_fields=y_fields,
-        )
-
-        self.prep_names: List[str] = prep_names
-        self.preprocessor = Preprocessor(
-            x_fields=x_fields,
-            stats_csv_file=stats_csv_file,
-        )
-
-        self.attention = LinearAttention(
-            len(x_fields) * len(prep_names), atn_dropout
-        )
-        self.linear = nn.Sequential(
-            # TODO: 不同预处理增加的维度可能不同
-            nn.Linear(len(x_fields) * len(prep_names), 2048),
-            nn.BatchNorm1d(2048),
-            nn.LeakyReLU(),
-            nn.Dropout(0.8),
-
-            nn.Linear(2048, 1024),
-            nn.BatchNorm1d(1024),
-            nn.LeakyReLU(),
-            nn.Dropout(0.7),
-
-            nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
-            nn.LeakyReLU(),
-            nn.Dropout(0.5),
-
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
-            nn.LeakyReLU(),
-            nn.Dropout(0.3),
-
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
-            nn.LeakyReLU(),
-            nn.Dropout(0.1),
-
-            nn.Linear(128, len(self.y_fields)),
-        )
-
-        self._init_weight()
-
-    def _init_weight(self, ) -> None:
-        """
-        自定义初始化权重
-        """
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                if m.out_features == 1:
-                    nn.init.xavier_uniform_(m.weight)
-                    nn.init.constant_(m.bias, 0)
-                else:
-                    nn.init.kaiming_uniform_(
-                        m.weight,
-                        a=0.01,
-                        mode="fan_in",
-                        nonlinearity="leaky_relu",
-                    )
-                    nn.init.constant_(m.bias, 0)
-
-    def forward(self, data: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        x_list: List[torch.Tensor] = []
-        for name in self.prep_names:
-            x_list.append(self.preprocessor(data["x"], name))
-
-        x: torch.Tensor = torch.concat(x_list, dim=-1)
-
-        # 推理得到输出
-        b, t, n, d = x.shape
-        assert t == 1
-        x = self.attention(x.reshape(b, n, d))
-        y_pred: torch.Tensor = self.linear(x.reshape(-1, d)).reshape(b, n, -1)
-
-        # 对输出标准化
-        mean: torch.Tensor = y_pred.mean(dim=-2, keepdim=True)
-        std: torch.Tensor = y_pred.std(dim=-2, keepdim=True)
-        y_pred = (y_pred - mean) / std
-        return {"y_pred": y_pred}
-
-
 class AtnWeightSumMLP(CSModel):
     """
     将多个预处理独立过MLP, 通过可学习的权重加权融合
 
-    首层为LinearAttention
+    首层为DiagAttention
     """
 
     def __init__(
@@ -351,7 +252,7 @@ class AtnWeightSumMLP(CSModel):
             stats_csv_file=stats_csv_file,
         )
         self.linears = nn.ModuleList(nn.Sequential(
-            LinearAttention(len(x_fields), atn_dropout),
+            DiagAttention(len(x_fields), atn_dropout),
             # (b, n, d) -> (b * n, d)
             nn.Flatten(0, -2),
 
