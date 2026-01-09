@@ -1,3 +1,3 @@
 from .gfs import GFSNetwork
 
-from .mlp import AtnConcatMLP, AtnWeightSumMLP, AtnWeightSumMLP2, ConcatMLP, WeightSumMLP
+from .mlp import AtnWeightSumMLP, ConcatMLP, WeightSumMLP
